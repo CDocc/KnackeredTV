@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
-import { Channel } from '../types';
+import { Channel, EPGEntry } from '../types';
 import { useLivePlayer } from '../components/LivePlayerContext';
 import { useFavorites } from '../components/FavoritesContext';
 import { useParental } from '../components/ParentalContext';
@@ -27,6 +27,44 @@ export const LiveTV = ({ profile }: LiveTVProps) => {
   const [searchTerm, setSearchTerm] = useState('');
   const [visibleCount, setVisibleCount] = useState(PAGE_SIZE);
   const [catchUpChannel, setCatchUpChannel] = useState<Channel | null>(null);
+  const [schedules, setSchedules] = useState<any[]>([]);
+  const [scheduleTarget, setScheduleTarget] = useState<{ channel: Channel; entry: EPGEntry } | null>(null);
+  const [scheduleError, setScheduleError] = useState('');
+
+  // Plain MPEG-TS is preferred for recording; HLS masters carry several variants
+  const recordingSrc = (channel: Channel) => {
+    const urls = [channel.streamUrl, ...(channel.alternateUrls || [])].filter(Boolean);
+    return (urls.find((u) => /\.ts(\?|$)/i.test(u)) || urls[0] || '').replace(/[\u200B-\u200F\u2060\uFEFF\s]/g, '');
+  };
+  const refreshSchedules = useCallback(async () => {
+    setSchedules((await window.electron.ipcRenderer.invoke('list-schedules')) || []);
+  }, []);
+  useEffect(() => {
+    refreshSchedules();
+  }, [refreshSchedules]);
+  const findSchedule = (channel: Channel, entry: EPGEntry) =>
+    schedules.find((s) => s.status === 'scheduled' && s.src === recordingSrc(channel) && s.start === entry.start);
+
+  const confirmSchedule = async () => {
+    if (!scheduleTarget) return;
+    const { channel, entry } = scheduleTarget;
+    const existing = findSchedule(channel, entry);
+    const result = existing
+      ? await window.electron.ipcRenderer.invoke('cancel-schedule', { id: existing.id })
+      : await window.electron.ipcRenderer.invoke('schedule-recording', {
+          src: recordingSrc(channel),
+          name: `${channel.name} - ${entry.title}`,
+          start: entry.start,
+          end: entry.end,
+        });
+    if (!result?.success) {
+      setScheduleError(result?.error || 'Could not schedule');
+      return;
+    }
+    setScheduleTarget(null);
+    setScheduleError('');
+    refreshSchedules();
+  };
   const [view, setView] = useState<'grid' | 'guide'>(
     () => (localStorage.getItem('liveView') === 'guide' ? 'guide' : 'grid')
   );
@@ -188,6 +226,11 @@ export const LiveTV = ({ profile }: LiveTVProps) => {
             onPlay={(channel) => playChannel(channel)}
             onScrollNearEnd={showMore}
             onCatchUp={setCatchUpChannel}
+            onSchedule={(channel, entry) => {
+              setScheduleError('');
+              setScheduleTarget({ channel, entry });
+            }}
+            isScheduled={(channel, entry) => !!findSchedule(channel, entry)}
           />
         )}
 
@@ -313,6 +356,33 @@ export const LiveTV = ({ profile }: LiveTVProps) => {
           </div>
         )}
       </div>
+      {scheduleTarget && (
+        <div className="fixed inset-0 z-[70] bg-black/70 flex items-center justify-center p-4" onClick={() => setScheduleTarget(null)}>
+          <div className="glass-panel w-full max-w-sm p-6 rounded-xl border border-white/10" onClick={(e) => e.stopPropagation()}>
+            <h3 className="text-lg font-semibold text-white mb-1">
+              {findSchedule(scheduleTarget.channel, scheduleTarget.entry) ? 'Cancel scheduled recording?' : 'Schedule recording'}
+            </h3>
+            <p className="text-white/90 truncate">{scheduleTarget.entry.title}</p>
+            <p className="text-sm text-white/60 mb-3">
+              {scheduleTarget.channel.name} ·{' '}
+              {new Date(scheduleTarget.entry.start).toLocaleString([], { weekday: 'short', hour: '2-digit', minute: '2-digit' })} -{' '}
+              {new Date(scheduleTarget.entry.end).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+            </p>
+            <p className="text-xs text-white/40 mb-3">
+              Starts 1 minute early and ends 3 minutes late. KnackeredTV must be running, and your account needs a free connection.
+            </p>
+            {scheduleError && <p className="text-sm text-red-300 mb-2">{scheduleError}</p>}
+            <div className="flex gap-2">
+              <button onClick={() => setScheduleTarget(null)} className="glass-button flex-1 py-2 text-sm">
+                Close
+              </button>
+              <button onClick={confirmSchedule} className="flex-1 py-2 text-sm rounded-lg bg-red-500/50 hover:bg-red-500/70 text-white">
+                {findSchedule(scheduleTarget.channel, scheduleTarget.entry) ? 'Cancel recording' : '⏺ Schedule'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
       {catchUpChannel && (
         <CatchUpModal channel={catchUpChannel} profile={profile} onClose={() => setCatchUpChannel(null)} />
       )}

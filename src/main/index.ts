@@ -56,9 +56,20 @@ interface ParentalConfig {
   hash?: string;
   locked: { live: string[]; movie: string[]; series: string[] };
 }
+interface RecordingSchedule {
+  id: string;
+  name: string;
+  src: string;
+  // Programme times; recording starts a little early and ends a little late
+  start: number;
+  end: number;
+  status: 'scheduled' | 'recording' | 'missed' | 'failed';
+  error?: string;
+}
 interface AppSettings {
   recordingsDir?: string;
   parental?: Record<string, ParentalConfig>;
+  schedules?: RecordingSchedule[];
 }
 const settingsPath = () => path.join(app.getPath('userData'), 'settings.json');
 function readSettings(): AppSettings {
@@ -208,7 +219,7 @@ function stopRecording(r: ActiveRecording) {
   }, 5000);
 }
 
-ipcMain.handle('start-recording', async (_event, { src: rawSrc, name, durationSec }: any) => {
+function startRecording({ src: rawSrc, name, durationSec }: any) {
   try {
     const src = String(rawSrc || '').replace(/[\u200B-\u200F\u2060\uFEFF\s]/g, '');
     if (!isHttp(src)) throw new Error('Invalid stream URL');
@@ -271,6 +282,65 @@ ipcMain.handle('start-recording', async (_event, { src: rawSrc, name, durationSe
   } catch (error) {
     return { success: false, error: (error as Error).message };
   }
+}
+ipcMain.handle('start-recording', async (_event, args: any) => startRecording(args));
+
+// ---- Scheduled recordings ----
+// Checked every few seconds while the app is running; schedules are saved so they survive restarts
+const SCHEDULE_LEAD_MS = 60 * 1000;
+const SCHEDULE_TAIL_MS = 3 * 60 * 1000;
+const getSchedules = (): RecordingSchedule[] => readSettings().schedules || [];
+const saveSchedules = (schedules: RecordingSchedule[]) => writeSettings({ ...readSettings(), schedules });
+
+function runSchedules() {
+  const now = Date.now();
+  const schedules = getSchedules();
+  let changed = false;
+  for (const s of schedules) {
+    if (s.status === 'scheduled' && now >= s.start - SCHEDULE_LEAD_MS) {
+      const endsAt = s.end + SCHEDULE_TAIL_MS;
+      if (now >= endsAt) {
+        s.status = 'missed';
+      } else {
+        const result: any = startRecording({ src: s.src, name: s.name, durationSec: (endsAt - now) / 1000 });
+        s.status = result.success ? 'recording' : 'failed';
+        if (!result.success) s.error = result.error;
+        console.log('[schedule]', s.status, s.name);
+      }
+      changed = true;
+    }
+  }
+  // Finished and cancelled entries are dropped after a day so the list stays short
+  const kept = schedules.filter((s) => s.end + SCHEDULE_TAIL_MS + 24 * 3600 * 1000 > now && !(s.status === 'recording' && now > s.end + SCHEDULE_TAIL_MS + 60000));
+  if (kept.length !== schedules.length) changed = true;
+  if (changed) saveSchedules(kept);
+}
+
+ipcMain.handle('schedule-recording', async (_event, { src: rawSrc, name, start, end }: any) => {
+  const src = String(rawSrc || '').replace(/[\u200B-\u200F\u2060\uFEFF\s]/g, '');
+  if (!isHttp(src)) return { success: false, error: 'Invalid stream URL' };
+  if (!Number.isFinite(start) || !Number.isFinite(end) || end <= start) return { success: false, error: 'Invalid time' };
+  if (end + SCHEDULE_TAIL_MS <= Date.now()) return { success: false, error: 'That programme has already finished' };
+  const schedules = getSchedules();
+  if (schedules.some((s) => s.src === src && s.start === start && s.status === 'scheduled')) return { success: true };
+  schedules.push({
+    id: `${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
+    name: String(name || 'Recording'),
+    src,
+    start,
+    end,
+    status: 'scheduled',
+  });
+  saveSchedules(schedules);
+  runSchedules();
+  return { success: true };
+});
+
+ipcMain.handle('list-schedules', async () => getSchedules().sort((a, b) => a.start - b.start));
+
+ipcMain.handle('cancel-schedule', async (_event, { id }: any) => {
+  saveSchedules(getSchedules().filter((s) => s.id !== id));
+  return { success: true };
 });
 
 ipcMain.handle('stop-recording', async (_event, { id }: any) => {
@@ -551,6 +621,8 @@ app.on('ready', async () => {
 
   createWindow();
   createMenu();
+  runSchedules();
+  setInterval(runSchedules, 15000);
 });
 
 app.on('window-all-closed', () => {

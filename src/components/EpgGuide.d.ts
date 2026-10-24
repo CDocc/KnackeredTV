@@ -8,7 +8,9 @@ interface EpgGuideProps {
     onPlay: (channel: Channel) => void;
     onScrollNearEnd: () => void;
     onCatchUp?: (channel: Channel) => void;
+    onSchedule?: (channel: Channel, entry: EPGEntry) => void;
+    isScheduled?: (channel: Channel, entry: EPGEntry) => boolean;
 }
-export declare const EpgGuide: ({ channels, epg, now, playingId, onPlay, onScrollNearEnd, onCatchUp }: EpgGuideProps) => React.JSX.Element;
+export declare const EpgGuide: ({ channels, epg, now, playingId, onPlay, onScrollNearEnd, onCatchUp, onSchedule, isScheduled }: EpgGuideProps) => React.JSX.Element;
 export {};
 //# sourceMappingURL=EpgGuide.d.ts.map

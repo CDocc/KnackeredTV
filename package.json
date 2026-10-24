@@ -44,7 +44,11 @@
     },
     "nsis": {
       "oneClick": false,
-      "allowToChangeInstallationDirectory": true
+      "allowToChangeInstallationDirectory": true,
+      "artifactName": "KnackeredTV-Installer-${version}.exe"
+    },
+    "portable": {
+      "artifactName": "KnackeredTV-Portable-${version}.exe"
     }
   },
   "devDependencies": {

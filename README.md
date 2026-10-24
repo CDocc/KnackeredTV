@@ -28,7 +28,8 @@ A modern IPTV player for Windows built with Electron, React, TypeScript and Tail
   - Record any live channel with one click (`⏺ Record`); files are saved as MKV with no re-encoding
   - Choose your recordings folder in **Settings**; manage, play, show and delete recordings on the Recordings page
   - **Catch-up TV** on channels where your provider keeps an archive: pick a past programme and play it
-  - Note: recording opens a second connection to your provider, which some accounts do not allow while you are watching
+  - **Scheduled recordings**: in the Guide view, click a programme that hasn't started yet to schedule it (click again to cancel). Recording starts 1 minute early and ends 3 minutes late; pending schedules are listed on the Recordings page and survive restarts
+  - Note: recording opens a second connection to your provider, which some accounts do not allow while you are watching. Scheduled recordings only run while KnackeredTV is open
 - **Multi-view**
   - Watch 2 or 4 live channels side by side; click a screen to hear it (only one is unmuted), or expand it to full screen
   - Pick channels from search or your favorites; your layout is remembered per profile
@@ -92,7 +93,7 @@ npm run dev
 npm run dist
 ```
 
-This produces two files in `release/`: an installer (`KnackeredTV Setup <version>.exe`) and a portable build (`KnackeredTV <version>.exe`). The electron-builder settings live in the `build` field of `package.json`; ffmpeg is already unpacked from the asar archive there. Builds are unsigned, so Windows SmartScreen may warn on first run.
+This produces two files in `release/`: an installer (`KnackeredTV-Installer-<version>.exe`) and a portable build (`KnackeredTV-Portable-<version>.exe`). The electron-builder settings live in the `build` field of `package.json`; ffmpeg is already unpacked from the asar archive there. Builds are unsigned, so Windows SmartScreen may warn on first run.
 
 Installed builds write their log to `%APPDATA%\knackeredtv\logs\app.log` (credentials in stream URLs are masked).
 

@@ -14,11 +14,14 @@ interface EpgGuideProps {
   onPlay: (channel: Channel) => void;
   onScrollNearEnd: () => void;
   onCatchUp?: (channel: Channel) => void;
+  // Clicking a programme that hasn't started yet offers to record it
+  onSchedule?: (channel: Channel, entry: EPGEntry) => void;
+  isScheduled?: (channel: Channel, entry: EPGEntry) => boolean;
 }
 
 const time = (ms: number) => new Date(ms).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
 
-export const EpgGuide = ({ channels, epg, now, playingId, onPlay, onScrollNearEnd, onCatchUp }: EpgGuideProps) => {
+export const EpgGuide = ({ channels, epg, now, playingId, onPlay, onScrollNearEnd, onCatchUp, onSchedule, isScheduled }: EpgGuideProps) => {
   const windowStart = Math.floor(now / SLOT_MS) * SLOT_MS - SLOT_MS;
   const windowEnd = windowStart + HOURS * 60 * 60 * 1000;
   const width = HOURS * 60 * PX_PER_MIN;
@@ -105,19 +108,28 @@ export const EpgGuide = ({ channels, epg, now, playingId, onPlay, onScrollNearEn
                   const left = Math.max(0, px(e.start));
                   const right = Math.min(width, px(e.end));
                   const live = e.start <= now && e.end > now;
+                  const future = e.start > now;
+                  const scheduled = !!isScheduled?.(channel, e);
                   return (
                     <button
                       key={`${e.start}-${e.title}`}
-                      onClick={() => onPlay(channel)}
+                      onClick={() => (future && onSchedule ? onSchedule(channel, e) : onPlay(channel))}
                       className={`absolute inset-y-1 px-2 text-left text-xs rounded overflow-hidden border truncate ${
-                        live
+                        scheduled
+                          ? 'bg-red-500/20 border-red-400/60 text-white'
+                          : live
                           ? 'bg-blue-500/30 border-blue-400/60 text-white'
                           : 'bg-white/5 border-white/10 text-white/70 hover:bg-white/10'
                       }`}
                       style={{ left: left + 1, width: Math.max(0, right - left - 2) }}
-                      title={`${e.title}\n${time(e.start)} - ${time(e.end)}${e.description ? `\n\n${e.description}` : ''}`}
+                      title={`${e.title}\n${time(e.start)} - ${time(e.end)}${e.description ? `\n\n${e.description}` : ''}${
+                        future && onSchedule ? '\n\nClick to schedule a recording' : ''
+                      }`}
                     >
-                      <div className="truncate font-medium">{e.title}</div>
+                      <div className="truncate font-medium">
+                        {scheduled && '⏺ '}
+                        {e.title}
+                      </div>
                       <div className="truncate text-white/40">
                         {time(e.start)} - {time(e.end)}
                       </div>
