@@ -96,6 +96,17 @@ This produces two files in `release/`: an installer (`KnackeredTV Setup <version
 
 Installed builds write their log to `%APPDATA%\knackeredtv\logs\app.log` (credentials in stream URLs are masked).
 
+### Publish a release
+
+Releases are built by GitHub Actions. Set the new version in `package.json`, commit, then tag and push:
+
+```bash
+git tag v0.2.0
+git push origin v0.2.0
+```
+
+The workflow in `.github/workflows/release.yml` builds on Windows and attaches the installer and portable exe to a new GitHub Release.
+
 ## Project structure
 
 ```
