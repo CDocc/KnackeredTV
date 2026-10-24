@@ -1,0 +1,10 @@
+node_modules/
+dist/
+release/
+logs/
+*.log
+*.db
+*.db-wal
+*.db-shm
+.env
+.vscode/
