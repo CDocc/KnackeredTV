@@ -140,6 +140,7 @@ src/
 - [x] Multi-view (several channels at once)
 - [x] Parental controls (PIN-locked categories)
 - [ ] Casting (Chromecast / DLNA)
+- [ ] **Android TV and Android phone app (APK)**: planned for a future release. The idea is to reuse the React UI and the Xtream/M3U code, and play through Android's native player (ExoPlayer) instead of the bundled ffmpeg, with remote-control navigation for Android TV and Fire Stick. Recording would not be part of the first version.
 
 ## Security notes
 
