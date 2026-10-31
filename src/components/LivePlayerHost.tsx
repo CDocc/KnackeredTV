@@ -27,7 +27,9 @@ export const LivePlayerHost = () => {
   const wrapperClass =
     mode === 'full'
       ? 'absolute inset-0 z-40'
-      : 'absolute bottom-4 right-4 z-40 w-96 aspect-video rounded-xl overflow-hidden shadow-2xl border border-white/20 bg-black';
+      : mode === 'preview'
+        ? 'absolute top-4 right-4 z-40 w-[26rem] aspect-video rounded-xl overflow-hidden shadow-2xl border border-white/20 bg-black'
+        : 'absolute bottom-4 right-4 z-40 w-96 aspect-video rounded-xl overflow-hidden shadow-2xl border border-white/20 bg-black';
 
   return (
     <div className={wrapperClass}>

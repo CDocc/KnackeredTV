@@ -10,6 +10,12 @@ const pending = new Map<string, Promise<Library>>();
 
 export const getCachedLibrary = (profileId: string) => cache.get(profileId) ?? null;
 
+// Used by the Reload buttons so search and multi-view also pick up changes on the server
+export const clearLibrary = (profileId: string) => {
+  cache.delete(profileId);
+  pending.delete(profileId);
+};
+
 export const getLibrary = (profile: any): Promise<Library> => {
   const cached = cache.get(profile.id);
   if (cached) return Promise.resolve(cached);

@@ -1,23 +1,29 @@
 import React, { useState } from 'react';
 import logo from '../../assets/kntvlogo.png';
+import { M3U_USER, PUBLIC_PLAYLISTS, isM3uProfile } from '../utils/profileKind';
 
 interface LoginScreenProps {
   onLoginSuccess: (profile: any) => void;
 }
+
+type Source = 'xtream' | 'public' | 'private';
+
+const EMPTY_FORM = {
+  profileName: '',
+  serverUrl: '',
+  username: '',
+  password: '',
+  m3uUrl: '',
+  publicUrl: PUBLIC_PLAYLISTS[0].url,
+};
 
 export const LoginScreen = (props: LoginScreenProps) => {
   const { onLoginSuccess } = props;
   const [mode, setMode] = useState<'profiles' | 'login'>('profiles');
   const [profiles, setProfiles] = useState<any[]>([]);
   const [loading, setLoading] = useState(false);
-  const [formData, setFormData] = useState({
-    profileName: '',
-    serverUrl: '',
-    username: '',
-    password: '',
-    useM3u: false,
-    m3uUrl: '',
-  });
+  const [source, setSource] = useState<Source>('xtream');
+  const [formData, setFormData] = useState(EMPTY_FORM);
   const [error, setError] = useState('');
 
   React.useEffect(() => {
@@ -54,16 +60,11 @@ export const LoginScreen = (props: LoginScreenProps) => {
       setError('Profile name is required');
       return false;
     }
-    if (!formData.serverUrl.trim()) {
-      setError('Server URL is required');
-      return false;
-    }
-    if (formData.useM3u) {
-      if (!formData.m3uUrl.trim()) {
-        setError('M3U URL is required');
+    if (source === 'xtream') {
+      if (!formData.serverUrl.trim()) {
+        setError('Server URL is required');
         return false;
       }
-    } else {
       if (!formData.username.trim()) {
         setError('Username is required');
         return false;
@@ -72,6 +73,9 @@ export const LoginScreen = (props: LoginScreenProps) => {
         setError('Password is required');
         return false;
       }
+    } else if (source === 'private' && !formData.m3uUrl.trim()) {
+      setError('Playlist URL or file path is required');
+      return false;
     }
     return true;
   };
@@ -83,22 +87,32 @@ export const LoginScreen = (props: LoginScreenProps) => {
     setError('');
 
     try {
-      if (formData.useM3u) {
-        // M3U URL login - just save the profile
-        const profileId = `profile-${Date.now()}`;
+      if (source !== 'xtream') {
+        const playlistUrl = (source === 'public' ? formData.publicUrl : formData.m3uUrl).trim();
         const profile = {
-          id: profileId,
+          id: `profile-${Date.now()}`,
           name: formData.profileName,
-          serverUrl: formData.serverUrl,
-          username: 'm3u-user',
-          password: 'm3u-pass',
-          m3uUrl: formData.m3uUrl,
+          serverUrl: playlistUrl,
+          username: M3U_USER,
+          password: 'm3u',
+          m3uUrl: playlistUrl,
           createdAt: Date.now(),
           lastUsed: Date.now(),
         };
 
+        // Download and parse now so a bad link is reported here instead of on an empty screen
+        const result = await window.electron.ipcRenderer.invoke('authenticate', {
+          serverUrl: profile.serverUrl,
+          username: profile.username,
+          password: profile.password,
+        });
+        if (!result.success) {
+          setError(result.error || 'Could not load that playlist');
+          return;
+        }
+
         await window.electron.ipcRenderer.invoke('save-profile', profile);
-        onLoginSuccess(profile);
+        onLoginSuccess({ ...profile, accountInfo: result.data });
       } else {
         // Xtream API login
         const result = await window.electron.ipcRenderer.invoke('authenticate', {
@@ -136,6 +150,14 @@ export const LoginScreen = (props: LoginScreenProps) => {
     } finally {
       setLoading(false);
     }
+  };
+
+  const handleDeleteProfile = async (profile: any) => {
+    if (!window.confirm(`Remove profile "${profile.name}"?`)) return;
+    await window.electron.ipcRenderer.invoke('delete-profile', profile.id);
+    const remaining = profiles.filter((p) => p.id !== profile.id);
+    setProfiles(remaining);
+    if (remaining.length === 0) setMode('login');
   };
 
   const handleQuickLogin = async (profile: any) => {
@@ -184,29 +206,35 @@ export const LoginScreen = (props: LoginScreenProps) => {
             <h2 className="text-xl font-semibold mb-4">Select Profile</h2>
             <div className="space-y-3 mb-6">
               {profiles.map((profile) => (
-                <button
-                  key={profile.id}
-                  onClick={() => handleQuickLogin(profile)}
-                  disabled={loading}
-                  className="w-full glass-card p-4 text-left hover:bg-white/15 transition-all 
-                    disabled:opacity-50 disabled:cursor-not-allowed"
-                >
-                  <div className="font-medium">{profile.name}</div>
-                  <div className="text-sm text-white/50">{profile.username}</div>
-                </button>
+                <div key={profile.id} className="flex gap-2">
+                  <button
+                    onClick={() => handleQuickLogin(profile)}
+                    disabled={loading}
+                    className="flex-1 min-w-0 glass-card p-4 text-left hover:bg-white/15 transition-all
+                      disabled:opacity-50 disabled:cursor-not-allowed"
+                  >
+                    <div className="font-medium truncate">{profile.name}</div>
+                    <div className="text-sm text-white/50 truncate">
+                      {isM3uProfile(profile) ? 'M3U playlist' : profile.username}
+                    </div>
+                  </button>
+                  <button
+                    onClick={() => handleDeleteProfile(profile)}
+                    disabled={loading}
+                    title="Remove this profile"
+                    className="glass-card px-3 text-white/50 hover:text-red-300 hover:bg-red-500/10 transition-all"
+                  >
+                    ✕
+                  </button>
+                </div>
               ))}
             </div>
             <button
               onClick={() => {
                 setMode('login');
-                setFormData({
-                  profileName: '',
-                  serverUrl: '',
-                  username: '',
-                  password: '',
-                  useM3u: false,
-                  m3uUrl: '',
-                });
+                setSource('xtream');
+                setFormData(EMPTY_FORM);
+                setError('');
               }}
               className="w-full glass-button mb-3"
             >
@@ -218,6 +246,25 @@ export const LoginScreen = (props: LoginScreenProps) => {
             <h2 className="text-xl font-semibold mb-6">
               {mode === 'login' ? 'Add New Profile' : 'Select Profile'}
             </h2>
+
+            <div className="flex rounded-lg overflow-hidden border border-white/10 text-sm mb-5">
+              {([
+                ['xtream', 'Xtream login'],
+                ['public', 'Public playlist'],
+                ['private', 'My playlist'],
+              ] as [Source, string][]).map(([key, label]) => (
+                <button
+                  key={key}
+                  onClick={() => {
+                    setSource(key);
+                    setError('');
+                  }}
+                  className={`flex-1 py-2 ${source === key ? 'bg-blue-500/40 text-white' : 'text-white/60 hover:bg-white/5'}`}
+                >
+                  {label}
+                </button>
+              ))}
+            </div>
 
             <div className="space-y-4 mb-6">
               <div>
@@ -232,46 +279,19 @@ export const LoginScreen = (props: LoginScreenProps) => {
                 />
               </div>
 
-              <div>
-                <label className="block text-sm font-medium mb-2">Server URL</label>
-                <input
-                  type="url"
-                  name="serverUrl"
-                  value={formData.serverUrl}
-                  onChange={handleInputChange}
-                  placeholder="https://example.com:8080"
-                  className="w-full"
-                />
-              </div>
-
-              <div className="flex items-center gap-2 py-2">
-                <input
-                  type="checkbox"
-                  id="useM3u"
-                  name="useM3u"
-                  checked={formData.useM3u}
-                  onChange={handleInputChange}
-                  className="w-4 h-4 rounded"
-                />
-                <label htmlFor="useM3u" className="text-sm">
-                  Use M3U URL instead
-                </label>
-              </div>
-
-              {formData.useM3u ? (
-                <div>
-                  <label className="block text-sm font-medium mb-2">M3U URL</label>
-                  <input
-                    type="url"
-                    name="m3uUrl"
-                    value={formData.m3uUrl}
-                    onChange={handleInputChange}
-                    placeholder="https://example.com/playlist.m3u"
-                    className="w-full"
-                  />
-                </div>
-              ) : (
+              {source === 'xtream' && (
                 <>
+                  <div>
+                    <label className="block text-sm font-medium mb-2">Server URL</label>
+                    <input
+                      type="url"
+                      name="serverUrl"
+                      value={formData.serverUrl}
+                      onChange={handleInputChange}
+                      placeholder="https://example.com:8080"
+                      className="w-full"
+                    />
+                  </div>
                   <div>
                     <label className="block text-sm font-medium mb-2">Username</label>
                     <input
@@ -297,6 +317,45 @@ export const LoginScreen = (props: LoginScreenProps) => {
                   </div>
                 </>
               )}
+
+              {source === 'public' && (
+                <div>
+                  <label className="block text-sm font-medium mb-2">iptv-org free channels</label>
+                  <select
+                    name="publicUrl"
+                    value={formData.publicUrl}
+                    onChange={handleInputChange}
+                    className="w-full"
+                  >
+                    {PUBLIC_PLAYLISTS.map((p) => (
+                      <option key={p.url} value={p.url} className="bg-slate-900">
+                        {p.label}
+                      </option>
+                    ))}
+                  </select>
+                  <p className="text-xs text-white/40 mt-2">
+                    Free, publicly available channels from the iptv-org project. Some streams may be offline or
+                    geo-blocked.
+                  </p>
+                </div>
+              )}
+
+              {source === 'private' && (
+                <div>
+                  <label className="block text-sm font-medium mb-2">Playlist URL or file path</label>
+                  <input
+                    type="text"
+                    name="m3uUrl"
+                    value={formData.m3uUrl}
+                    onChange={handleInputChange}
+                    placeholder="https://example.com/playlist.m3u or C:\playlists\mine.m3u"
+                    className="w-full"
+                  />
+                  <p className="text-xs text-white/40 mt-2">
+                    Stored only on this PC. Links that contain a login or token are never written to the log.
+                  </p>
+                </div>
+              )}
             </div>
 
             {error && (
@@ -312,21 +371,14 @@ export const LoginScreen = (props: LoginScreenProps) => {
                 loading ? 'opacity-50 cursor-not-allowed' : ''
               }`}
             >
-              {loading ? 'Connecting...' : 'Login'}
+              {loading ? 'Connecting...' : source === 'xtream' ? 'Login' : 'Load playlist'}
             </button>
 
             {profiles.length > 0 && (
               <button
                 onClick={() => {
                   setMode('profiles');
-                  setFormData({
-                    profileName: '',
-                    serverUrl: '',
-                    username: '',
-                    password: '',
-                    useM3u: false,
-                    m3uUrl: '',
-                  });
+                  setFormData(EMPTY_FORM);
                   setError('');
                 }}
                 className="w-full text-sm text-white/60 hover:text-white/80 transition-colors"

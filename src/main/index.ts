@@ -2,6 +2,7 @@ const { app, BrowserWindow, ipcMain, Menu, session, dialog, shell } = require('e
 const path = require('path' /* webpackIgnore: true */);
 const { db } = require('../db/index');
 const { XtreamAPIClient } = require('../utils/xtreamApi');
+const { M3U_USER, isM3uProfile, loadPlaylist, playlistCategories, clearPlaylistCache } = require('../utils/m3u');
 
 const http = require('http' /* webpackIgnore: true */);
 const { spawn } = require('child_process' /* webpackIgnore: true */);
@@ -22,7 +23,9 @@ try {
 } catch {}
 const writeLog = (source: string, level: string, message: string) => {
   try {
-    const safe = String(message).replace(/(\/(?:movie|series|live|timeshift)\/)[^/\s]+\/[^/\s]+\//g, '$1***/***/');
+    const safe = String(message)
+      .replace(/(\/(?:movie|series|live|timeshift)\/)[^/\s]+\/[^/\s]+\//g, '$1***/***/')
+      .replace(/([?&](?:username|password|token|key|auth)=)[^&\s"]+/gi, '$1***');
     fs.appendFileSync(logFile, `${new Date().toISOString()} [${source}] ${level}: ${safe}\n`);
   } catch {}
 };
@@ -686,6 +689,10 @@ ipcMain.handle('delete-profile', async (_event, id: string) => {
 // IPC Handlers - Authentication
 ipcMain.handle('authenticate', async (_event, { serverUrl, username, password }) => {
   try {
+    if (isM3uProfile(username)) {
+      const channels = await loadPlaylist(serverUrl);
+      return { success: true, data: { status: `Playlist · ${channels.length} channels` } };
+    }
     const client = new XtreamAPIClient(serverUrl, username, password);
     const accountInfo = await client.authenticate();
     return { success: true, data: accountInfo };
@@ -694,9 +701,17 @@ ipcMain.handle('authenticate', async (_event, { serverUrl, username, password })
   }
 });
 
+ipcMain.handle('reload-playlist', async () => {
+  clearPlaylistCache();
+  return { success: true };
+});
+
 // IPC Handlers - Live TV
 ipcMain.handle('get-live-categories', async (_event, { serverUrl, username, password }) => {
   try {
+    if (isM3uProfile(username)) {
+      return { success: true, data: playlistCategories(await loadPlaylist(serverUrl)) };
+    }
     const client = new XtreamAPIClient(serverUrl, username, password);
     const categories = await client.getLiveCategories();
     return { success: true, data: categories };
@@ -707,6 +722,10 @@ ipcMain.handle('get-live-categories', async (_event, { serverUrl, username, pass
 
 ipcMain.handle('get-live-channels', async (_event, { serverUrl, username, password, categoryId }) => {
   try {
+    if (isM3uProfile(username)) {
+      const all = await loadPlaylist(serverUrl);
+      return { success: true, data: categoryId ? all.filter((c: any) => c.categoryId === String(categoryId)) : all };
+    }
     const client = new XtreamAPIClient(serverUrl, username, password);
     const channels = await client.getLiveChannels(categoryId);
     return { success: true, data: channels };
@@ -720,6 +739,7 @@ const epgCache = new Map<string, { at: number; data: any[] }>();
 const EPG_TTL = 5 * 60 * 1000;
 ipcMain.handle('get-epg', async (_event, { serverUrl, username, password, streamIds }) => {
   try {
+    if (isM3uProfile(username)) return { success: true, data: {} };
     const client = new XtreamAPIClient(serverUrl, username, password);
     const result: Record<string, any[]> = {};
     const queue: string[] = [...streamIds];
@@ -748,6 +768,8 @@ ipcMain.handle('get-epg', async (_event, { serverUrl, username, password, stream
 const xtreamHandler = (call: (client: any, args: any) => Promise<any>) =>
   async (_event: any, { serverUrl, username, password, ...args }: any) => {
     try {
+      // Playlists have no VOD, series, guide or catch-up
+      if (isM3uProfile(username)) return { success: true, data: [] };
       const client = new XtreamAPIClient(serverUrl, username, password);
       return { success: true, data: await call(client, args) };
     } catch (error) {

@@ -14,6 +14,7 @@ interface VideoPlayerProps {
 const VOLUME_KEY = 'knackeredtv.volume';
 const MUTED_KEY = 'knackeredtv.muted';
 const STALL_TIMEOUT_MS = 15000;
+const STARTUP_TIMEOUT_MS = 20000;
 
 const loadVolume = () => {
   const v = parseFloat(localStorage.getItem(VOLUME_KEY) || '');
@@ -24,8 +25,9 @@ export const VideoPlayer = (props: any) => {
   const onClose = props.onClose;
   const title = props.title || '';
   const isLive: boolean = !!props.isLive;
-  const mode: 'full' | 'mini' = props.mode || 'full';
-  const isMini = mode === 'mini';
+  const mode: 'full' | 'mini' | 'preview' = props.mode || 'full';
+  // The docked preview uses the same compact controls as the floating mini player
+  const isMini = mode !== 'full';
   const onMinimize = props.onMinimize;
   const onExpand = props.onExpand;
   const onTimeUpdateRef = useRef(props.onTimeUpdate);
@@ -485,10 +487,25 @@ export const VideoPlayer = (props: any) => {
         retries++;
         console.warn(`[player] ${reason}, reconnecting (${retries}/${MAX_RETRIES})`);
         setIsLoadingMessage(`Reconnecting (${retries}/${MAX_RETRIES})...`);
-        setTimeout(() => !disposed && retry(), 1000 * retries);
+        setTimeout(() => {
+          if (disposed) return;
+          retry();
+          armStartup();
+        }, 1000 * retries);
       } else {
         fail(reason);
       }
+    };
+
+    // A connection that hangs without raising any event would otherwise load forever
+    let startupTimer: any = null;
+    const armStartup = () => {
+      clearTimeout(startupTimer);
+      if (props.forceTranscode || transcoding) return;
+      startupTimer = setTimeout(() => {
+        startupTimer = null;
+        retryOrFail('no data received', () => reload());
+      }, STARTUP_TIMEOUT_MS);
     };
 
     console.log(`[player] loading ${currentUrlIndex + 1}/${urlsToTry.length}: ${url}`);
@@ -509,6 +526,7 @@ export const VideoPlayer = (props: any) => {
     };
     const onStallPlaying = () => {
       clearTimeout(stallTimer);
+      clearTimeout(startupTimer);
       stallTimer = null;
       retries = 0;
     };
@@ -577,10 +595,12 @@ export const VideoPlayer = (props: any) => {
       video.src = url;
       play();
     }
+    armStartup();
 
     return () => {
       disposed = true;
       clearTimeout(stallTimer);
+      clearTimeout(startupTimer);
       video.removeEventListener('waiting', onStallWaiting);
       video.removeEventListener('playing', onStallPlaying);
       hls?.destroy();
@@ -823,17 +843,25 @@ export const VideoPlayer = (props: any) => {
       )}
 
       {isLoadingMessage && !error && (
-        <div className="absolute inset-0 flex items-center justify-center bg-black/60 z-40">
+        <div className={`absolute inset-0 flex items-center justify-center bg-black/60 z-40 ${isMini ? 'pointer-events-none' : ''}`}>
           <div className="text-center">
             <div className="animate-spin-slow mb-4 text-4xl">⟳</div>
             <div className="text-white text-sm">{isLoadingMessage}</div>
+            {!isMini && (
+              <button
+                onClick={onClose}
+                className="mt-5 px-4 py-2 rounded-lg bg-white/10 hover:bg-red-500/50 text-white text-sm transition-colors"
+              >
+                Cancel
+              </button>
+            )}
           </div>
         </div>
       )}
 
       {/* Mini player: compact overlay controls shown on hover */}
       {isMini && (
-        <div className="absolute inset-x-0 top-0 flex items-center justify-between gap-2 px-3 py-2 bg-gradient-to-b from-black/80 to-transparent opacity-0 group-hover:opacity-100 transition-opacity z-30">
+        <div className="absolute inset-x-0 top-0 flex items-center justify-between gap-2 px-3 py-2 bg-gradient-to-b from-black/80 to-transparent opacity-0 group-hover:opacity-100 transition-opacity z-50">
           <span className="text-white text-xs font-medium truncate">{title}</span>
           <div className="flex items-center gap-1 flex-shrink-0">
             <button

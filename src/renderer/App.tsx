@@ -16,6 +16,7 @@ import logo from '../../assets/kntvlogo.png';
 import { FavoritesContext, FavoritesApi, FavoriteKind, FavoriteRow } from '../components/FavoritesContext';
 import { ParentalContext, ParentalApi } from '../components/ParentalContext';
 import { PinModal } from '../components/PinModal';
+import { isM3uProfile } from '../utils/profileKind';
 import './styles.css';
 
 type PageType = 'livetv' | 'multiview' | 'movies' | 'series' | 'favorites' | 'recordings' | 'search' | 'settings';
@@ -40,6 +41,8 @@ export const App = () => {
   const previousRef = useRef<Channel | null>(null);
   const liveRef = useRef<LiveSession | null>(null);
   liveRef.current = live;
+  const currentPageRef = useRef<PageType>('livetv');
+  currentPageRef.current = currentPage;
   const [favoriteRows, setFavoriteRows] = useState<FavoriteRow[]>([]);
   // Item chosen on the Favorites page; the target page opens it directly
   const [openItem, setOpenItem] = useState<any>(null);
@@ -158,7 +161,7 @@ export const App = () => {
     const switchTo = (channel: Channel, mode?: LivePlayerMode) =>
       setLive((prev) => {
         if (prev && prev.channel.id !== channel.id) previousRef.current = prev.channel;
-        return { channel, mode: mode ?? (prev?.mode === 'mini' ? 'mini' : 'full') };
+        return { channel, mode: mode ?? prev?.mode ?? 'preview' };
       });
 
     return {
@@ -174,7 +177,8 @@ export const App = () => {
         setMedia(null);
         switchTo(channel, mode);
       },
-      minimize: () => setLive((prev) => (prev ? { ...prev, mode: 'mini' } : prev)),
+      minimize: () =>
+        setLive((prev) => (prev ? { ...prev, mode: currentPageRef.current === 'livetv' ? 'preview' : 'mini' } : prev)),
       expand: () => {
         setCurrentPage('livetv');
         setLive((prev) => (prev ? { ...prev, mode: 'full' } : prev));
@@ -213,7 +217,12 @@ export const App = () => {
       setMedia(null);
       return;
     }
-    setLive((prev) => (prev && prev.mode === 'full' ? { ...prev, mode: 'mini' } : prev));
+    // Back on Live TV the mini player docks into the preview slot; elsewhere it floats in the corner
+    setLive((prev) => {
+      if (!prev || prev.mode === 'full' && page === 'livetv') return prev;
+      const next = page === 'livetv' ? 'preview' : 'mini';
+      return prev.mode === next ? prev : { ...prev, mode: next };
+    });
   }, []);
 
   // Ctrl+K jumps to the search page from anywhere
@@ -262,6 +271,15 @@ export const App = () => {
     setCurrentPage('livetv');
   };
 
+  const handleSwitchProfile = () => {
+    setCurrentProfile(null);
+    setLive(null);
+    setMedia(null);
+    setOpenItem(null);
+    setSearchQuery('');
+    setCurrentPage('livetv');
+  };
+
   const handleLogout = async () => {
     if (currentProfile) {
       try {
@@ -286,6 +304,8 @@ export const App = () => {
       </>
     );
   }
+
+  const isPlaylist = isM3uProfile(currentProfile);
 
   return (
     <LivePlayerContext.Provider value={livePlayer}>
@@ -331,7 +351,9 @@ export const App = () => {
             { id: 'favorites' as PageType, label: 'Favorites', icon: '★' },
             { id: 'recordings' as PageType, label: 'Recordings', icon: '⏺' },
             { id: 'search' as PageType, label: 'Search', icon: '🔍' },
-          ].map((item) => (
+          ]
+            .filter((item) => !(isPlaylist && (item.id === 'movies' || item.id === 'series')))
+            .map((item) => (
             <button
               key={item.id}
               onClick={() => {
@@ -384,6 +406,14 @@ export const App = () => {
         )}
 
         {/* Settings Button */}
+        <button
+          onClick={handleSwitchProfile}
+          className="w-full text-left px-4 py-2 mb-1 rounded-lg text-sm text-white/70 hover:text-white hover:bg-white/5 border border-transparent flex items-center gap-3"
+          title="Switch to another profile"
+        >
+          <span className="text-lg flex-shrink-0">👤</span>
+          <span className="truncate">Switch profile</span>
+        </button>
         <button
           onClick={() => navigate('settings')}
           className={`w-full text-left px-4 py-3 rounded-lg transition-all font-medium flex items-center gap-3

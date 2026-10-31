@@ -270,6 +270,7 @@ export class XtreamAPIClient {
       year: s.releaseDate || s.release_date || '',
       rating: parseFloat(s.rating) || 0,
       backdrop: (Array.isArray(s.backdrop_path) ? s.backdrop_path[0] : s.backdrop_path) || '',
+      added: Number(s.last_modified) || 0,
       categoryId: String(s.category_id ?? ''),
     }));
   }

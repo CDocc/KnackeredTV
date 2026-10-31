@@ -1,6 +1,9 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { CategoryList } from '../components/CategoryList';
 import { useParental } from '../components/ParentalContext';
+import { SortReload } from '../components/SortReload';
+import { SortKey, loadSort, saveSort, sortItems } from '../utils/sort';
+import { clearLibrary } from '../utils/library';
 import { PosterCard } from '../components/PosterCard';
 import { useFavorites } from '../components/FavoritesContext';
 import { PosterGrid } from '../components/PosterGrid';
@@ -20,6 +23,7 @@ interface SeriesItem {
   genre: string;
   year: string;
   rating: number;
+  added?: number;
   backdrop: string;
 }
 
@@ -79,7 +83,18 @@ export const Series = ({ profile, initialSelected }: SeriesProps) => {
   const [history, setHistory] = useState<HistoryRow[]>([]);
   const [selected, setSelected] = useState<SeriesItem | null>(initialSelected ?? null);
   const [playing, setPlaying] = useState<PlayRequest | null>(null);
+  const [sort, setSort] = useState<SortKey>(() => loadSort('series'));
+  const [reloadTick, setReloadTick] = useState(0);
   const requestId = useRef(0);
+
+  const changeSort = (key: SortKey) => {
+    setSort(key);
+    saveSort('series', key);
+  };
+  const reload = () => {
+    clearLibrary(profile.id);
+    setReloadTick((n) => n + 1);
+  };
 
   const creds = useMemo(
     () => ({ serverUrl: profile.serverUrl, username: profile.username, password: profile.password }),
@@ -129,12 +144,12 @@ export const Series = ({ profile, initialSelected }: SeriesProps) => {
       })
       .catch((err: any) => id === requestId.current && setError(err.message))
       .finally(() => id === requestId.current && setLoading(false));
-  }, [selectedCategory, creds, restricted]);
+  }, [selectedCategory, creds, restricted, reloadTick]);
 
   const filtered = useMemo(() => {
     const q = search.trim().toLowerCase();
-    return q ? seriesList.filter((s) => s.name.toLowerCase().includes(q)) : seriesList;
-  }, [seriesList, search]);
+    return sortItems(q ? seriesList.filter((s) => s.name.toLowerCase().includes(q)) : seriesList, sort);
+  }, [seriesList, search, sort]);
 
   const resumable = useMemo(() => history.filter(isResumable), [history]);
 
@@ -168,13 +183,16 @@ export const Series = ({ profile, initialSelected }: SeriesProps) => {
       <CategoryList kind="series" categories={categories} selected={selectedCategory} onSelect={setSelectedCategory} />
 
       <div className="flex-1 min-w-0 flex flex-col">
-        <input
-          type="text"
-          placeholder="Search series in this category..."
-          value={search}
-          onChange={(e) => setSearch(e.target.value)}
-          className="w-full glass-card px-4 py-3 mb-4 rounded-lg text-sm border border-white/10 focus:border-blue-400/50 outline-none"
-        />
+        <div className="flex gap-2 mb-4">
+          <input
+            type="text"
+            placeholder="Search series in this category..."
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            className="flex-1 min-w-0 glass-card px-4 py-3 rounded-lg text-sm border border-white/10 focus:border-blue-400/50 outline-none"
+          />
+          <SortReload sort={sort} onSort={changeSort} onReload={reload} loading={loading} />
+        </div>
 
         <div className="flex-1 glass-panel p-6 rounded-xl overflow-y-auto border border-white/10">
           {resumable.length > 0 && !search && (

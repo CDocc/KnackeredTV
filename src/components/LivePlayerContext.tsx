@@ -1,7 +1,8 @@
 import { createContext, useContext } from 'react';
 import { Channel } from '../types';
 
-export type LivePlayerMode = 'full' | 'mini';
+// preview: docked beside the channel list on Live TV; mini: floating corner player on other pages
+export type LivePlayerMode = 'full' | 'mini' | 'preview';
 
 export interface LiveSession {
   channel: Channel;

@@ -1,6 +1,6 @@
 /// <reference types="react" />
 import { Channel } from '../types';
-export type LivePlayerMode = 'full' | 'mini';
+export type LivePlayerMode = 'full' | 'mini' | 'preview';
 export interface LiveSession {
     channel: Channel;
     mode: LivePlayerMode;

@@ -239,7 +239,7 @@ export const LiveTV = ({ profile }: LiveTVProps) => {
             className="flex-1 glass-panel p-6 rounded-xl overflow-y-auto border border-white/10"
             onScroll={handleGridScroll}
           >
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 gap-3">
+            <div className={`grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 ${live?.mode === 'preview' ? '2xl:grid-cols-4' : 'xl:grid-cols-5'}`}>
               {filteredChannels.slice(0, visibleCount).map((channel) => (
                 <div
                   key={channel.id}
@@ -356,6 +356,7 @@ export const LiveTV = ({ profile }: LiveTVProps) => {
           </div>
         )}
       </div>
+      {live?.mode === 'preview' && <div className="w-[26rem] shrink-0" aria-hidden />}
       {scheduleTarget && (
         <div className="fixed inset-0 z-[70] bg-black/70 flex items-center justify-center p-4" onClick={() => setScheduleTarget(null)}>
           <div className="glass-panel w-full max-w-sm p-6 rounded-xl border border-white/10" onClick={(e) => e.stopPropagation()}>

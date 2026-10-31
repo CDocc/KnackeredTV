@@ -44,7 +44,8 @@ A modern IPTV player for Windows built with Electron, React, TypeScript and Tail
   - **Automatic audio conversion**: movies in MKV, AVI and similar containers often use AC3, E-AC3 or DTS audio that Chromium cannot decode. KnackeredTV transparently converts the audio to AAC with a bundled ffmpeg, keeping the video untouched where possible
   - Volume bar with persistence, mute, mouse-wheel volume, fullscreen and Picture-in-Picture
   - Screen sharing friendly: the window keeps rendering when it is covered, so Discord streams do not go black
-- **Profiles**: save several IPTV servers; passwords are stored encrypted in a local SQLite database
+- **Profiles**: save several IPTV servers and switch between them from the sidebar; passwords are stored encrypted in a local SQLite database
+- **M3U playlists**: besides Xtream logins, add the free [iptv-org](https://github.com/iptv-org/iptv) channel lists (worldwide, by category, country or language) as a public playlist, or your own private playlist URL / local `.m3u` file. Playlist profiles get Live TV, favorites, search, multi-view and recording (no Movies, Series, guide or catch-up)
 
 ## Keyboard shortcuts
 
@@ -133,7 +134,8 @@ src/
 - [x] Global search across live, movies and series
 - [x] EPG: now/next with progress on channel cards, plus a Guide timeline view
 - [x] Audio and subtitle track selection (text subtitles)
-- [ ] M3U playlist and Stalker/MAC portal support
+- [x] M3U playlists (public iptv-org and private)
+- [ ] Stalker/MAC portal support
 - [x] Recording and catch-up (timeshift archive)
 - [x] Multi-view (several channels at once)
 - [x] Parental controls (PIN-locked categories)
