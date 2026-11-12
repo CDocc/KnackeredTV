@@ -66,6 +66,9 @@ jobs:
           java-version: 17
 
       - uses: android-actions/setup-android@v3
+        with:
+          # "tools" was removed from the SDK repository and makes this action fail
+          packages: platform-tools platforms;android-35 build-tools;35.0.0
 
       - name: Check the tag matches the app version
         run: |
