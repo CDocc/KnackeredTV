@@ -4,6 +4,8 @@ A modern IPTV player for Windows built with Electron, React, TypeScript and Tail
 
 > **KnackeredTV does not provide any content.** You need your own IPTV subscription and the legal right to access the streams you play.
 
+An early native Android app for phones and Android TV is also in `android/`. It uses the same layout and styling as the desktop app but has a smaller feature set; see [Android development](#android-development).
+
 ## Features
 
 - **Live TV**
@@ -100,14 +102,33 @@ Installed builds write their log to `%APPDATA%\knackeredtv\logs\app.log` (creden
 
 ### Publish a release
 
-Releases are built by GitHub Actions. Set the new version in `package.json`, commit, then tag and push:
+Releases are built by GitHub Actions. Add a `## X.Y.Z` section to `CHANGELOG.md`, set the new version in `package.json` (and `versionName`/`versionCode` in `android/app/build.gradle`), commit, then tag and push:
 
 ```bash
-git tag v0.2.0
-git push origin v0.2.0
+git tag v0.3.0
+git push origin v0.3.0
 ```
 
-The workflow in `.github/workflows/release.yml` builds on Windows and attaches the installer and portable exe to a new GitHub Release.
+The workflow in `.github/workflows/release.yml` builds on Windows and attaches the installer and portable exe to a new GitHub Release, then a second job builds the Android APK (`KnackeredTV-Android-<version>.apk`) and attaches it too. The tag must match `versionName` in `android/app/build.gradle` or the Android job fails. The matching `CHANGELOG.md` section becomes the release notes.
+
+**Android signing:** an installed app can only be updated by an APK signed with the same key. Create a keystore once (`keytool -genkeypair -v -keystore release.jks -alias knackeredtv -keyalg RSA -keysize 2048 -validity 10000`), keep it somewhere safe, and add these repository secrets: `ANDROID_KEYSTORE_BASE64` (the file base64-encoded), `ANDROID_KEYSTORE_PASSWORD`, `ANDROID_KEY_ALIAS` and `ANDROID_KEY_PASSWORD`. Without them the workflow still produces an APK, signed with a throwaway debug key that cannot update older installs. Never commit the keystore.
+
+Both apps read the latest GitHub Releases on start-up and from **Settings > Updates**: they show the installed version, flag a newer release with a badge on Settings, and list the change log. Only published, non-pre-release releases with a `vX.Y.Z` tag count, and updates are downloaded from the release page rather than installed automatically.
+
+## Android development
+
+The Android app is a separate native app; building it does not change the Windows version. It runs in landscape and mirrors the desktop design: a sidebar with **Live TV, Movies, Series, Favorites, Search and Settings**, glass panels, category lists and poster grids. It supports Xtream logins, public iptv-org playlists, private M3U URLs or files, multiple profiles, favorites, sort and reload on Movies and Series, continue watching, and Media3/ExoPlayer playback. Going back from full screen keeps the video playing in a **mini player** in the corner (tap it to expand, ✕ to close), and the full-screen player has a **screen size** option (Fit, Zoom, Stretch, 16:9, 4:3) that is remembered. The picture can extend behind a camera cutout. It is designed for both touch and TV remotes, but device and stream compatibility must be tested. The guide (EPG), catch-up, recording, multi-view, parental controls and audio/subtitle track selection are not yet available on Android, and AC3/E-AC3 audio depends on what your device can decode (there is no bundled ffmpeg). Android and Windows profiles and favorites are stored separately and do not sync.
+
+Install Android Studio with the Android SDK Platform 35 and Build Tools 35.0.0, and use JDK 17. On Windows, from the repository root:
+
+```powershell
+cd android
+.\gradlew.bat :app:testDebugUnitTest :app:assembleDebug
+```
+
+The debug APK is written to `android/app/build/outputs/apk/debug/app-debug.apk`. Install it on a test device with `adb install -r app/build/outputs/apk/debug/app-debug.apk` from the `android` directory. A debug APK is for testing, not a Play Store release.
+
+Profiles are encrypted using Android Keystore and remain on the device. Some IPTV providers still use HTTP, so the app permits cleartext connections for compatibility; URLs, credentials and streams sent over HTTP are not protected in transit. Prefer HTTPS when your provider supports it. The public playlist is maintained by iptv-org, not this project, and individual channels may be offline or region-restricted.
 
 ## Project structure
 
@@ -140,7 +161,7 @@ src/
 - [x] Multi-view (several channels at once)
 - [x] Parental controls (PIN-locked categories)
 - [ ] Casting (Chromecast / DLNA)
-- [ ] **Android TV and Android phone app (APK)**: planned for a future release. The idea is to reuse the React UI and the Xtream/M3U code, and play through Android's native player (ExoPlayer) instead of the bundled ffmpeg, with remote-control navigation for Android TV and Fire Stick. Recording would not be part of the first version.
+- [ ] Android TV and Android phone app: first version with Live TV, Movies, Series, Favorites, Search and Settings is built; needs device testing, then guide/EPG, track selection and more
 
 ## Security notes
 

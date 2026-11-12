@@ -1,0 +1,55 @@
+plugins {
+    id 'com.android.application'
+}
+
+android {
+    namespace 'com.knackeredtv.android'
+    compileSdk 35
+
+    defaultConfig {
+        applicationId 'com.knackeredtv.android'
+        minSdk 23
+        targetSdk 35
+        versionCode 3
+        versionName '0.3.0'
+    }
+
+    compileOptions {
+        sourceCompatibility JavaVersion.VERSION_17
+        targetCompatibility JavaVersion.VERSION_17
+    }
+
+    testOptions {
+        unitTests.includeAndroidResources = true
+    }
+
+    // Release builds are signed with the keystore from the environment (CI secrets). Without one they fall back to the
+    // debug key, which installs fine but cannot update an APK signed with a different key.
+    def keystorePath = System.getenv('ANDROID_KEYSTORE_FILE')
+    signingConfigs {
+        if (keystorePath) {
+            release {
+                storeFile file(keystorePath)
+                storePassword System.getenv('ANDROID_KEYSTORE_PASSWORD')
+                keyAlias System.getenv('ANDROID_KEY_ALIAS')
+                keyPassword System.getenv('ANDROID_KEY_PASSWORD')
+            }
+        }
+    }
+    buildTypes {
+        release {
+            signingConfig keystorePath ? signingConfigs.release : signingConfigs.debug
+        }
+    }
+}
+
+dependencies {
+    implementation 'androidx.media3:media3-exoplayer:1.5.1'
+    implementation 'androidx.media3:media3-exoplayer-hls:1.5.1'
+    implementation 'androidx.media3:media3-ui:1.5.1'
+    implementation 'androidx.recyclerview:recyclerview:1.3.2'
+    implementation 'com.github.bumptech.glide:glide:4.16.0'
+    testImplementation 'junit:junit:4.13.2'
+    testImplementation 'org.robolectric:robolectric:4.14.1'
+    testImplementation 'androidx.test:core:1.6.1'
+}

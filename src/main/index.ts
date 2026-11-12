@@ -3,6 +3,7 @@ const path = require('path' /* webpackIgnore: true */);
 const { db } = require('../db/index');
 const { XtreamAPIClient } = require('../utils/xtreamApi');
 const { M3U_USER, isM3uProfile, loadPlaylist, playlistCategories, clearPlaylistCache } = require('../utils/m3u');
+const { checkForUpdates, RELEASES_PAGE } = require('../utils/updates');
 
 const http = require('http' /* webpackIgnore: true */);
 const { spawn } = require('child_process' /* webpackIgnore: true */);
@@ -177,6 +178,14 @@ ipcMain.handle('open-recordings-folder', async () => {
   const dir = getRecordingsDir();
   fs.mkdirSync(dir, { recursive: true });
   await shell.openPath(dir);
+});
+
+ipcMain.handle('get-app-version', async () => app.getVersion());
+ipcMain.handle('check-for-updates', async () => checkForUpdates(app.getVersion()));
+ipcMain.handle('open-release-page', async (_event, tag?: string) => {
+  // Only ever opens this project's own release pages
+  const safeTag = typeof tag === 'string' && /^v?[0-9A-Za-z.+-]+$/.test(tag) ? `/tag/${tag}` : '';
+  await shell.openExternal(`${RELEASES_PAGE}${safeTag}`);
 });
 
 interface ActiveRecording {

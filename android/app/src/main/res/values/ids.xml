@@ -1,0 +1,11 @@
+<resources>
+    <item name="card_title" type="id" />
+    <item name="card_subtitle" type="id" />
+    <item name="card_letter" type="id" />
+    <item name="card_image" type="id" />
+    <item name="card_star" type="id" />
+    <item name="card_rating" type="id" />
+    <item name="card_progress_row" type="id" />
+    <item name="card_progress_fill" type="id" />
+    <item name="card_progress_rest" type="id" />
+</resources>

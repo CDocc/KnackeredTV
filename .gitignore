@@ -8,3 +8,9 @@ logs/
 *.db-shm
 .env
 .vscode/
+android/.gradle/
+android/local.properties
+android/**/build/
+*.jks
+*.keystore
+keystore.properties

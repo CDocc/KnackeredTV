@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import type { Channel } from '../types';
+import type { UpdateCheck } from '../utils/updates';
 import { LoginScreen } from '../components/LoginScreen';
 import { LivePlayerHost } from '../components/LivePlayerHost';
 import { LivePlayerContext, LivePlayerApi, LiveSession, LivePlayerMode, MediaSession } from '../components/LivePlayerContext';
@@ -266,6 +267,20 @@ export const App = () => {
     loadLastProfile();
   }, []);
 
+  const [update, setUpdate] = useState<UpdateCheck | null>(null);
+  const [checkingUpdate, setCheckingUpdate] = useState(false);
+  const checkUpdates = useCallback(async () => {
+    setCheckingUpdate(true);
+    try {
+      setUpdate(await window.electron.ipcRenderer.invoke('check-for-updates'));
+    } finally {
+      setCheckingUpdate(false);
+    }
+  }, []);
+  useEffect(() => {
+    checkUpdates();
+  }, [checkUpdates]);
+
   const handleLoginSuccess = (profile: CurrentProfile) => {
     setCurrentProfile(profile);
     setCurrentPage('livetv');
@@ -425,6 +440,11 @@ export const App = () => {
         >
           <span className="text-lg flex-shrink-0">⚙️</span>
           <span className="truncate">Settings</span>
+          {update?.updateAvailable && (
+            <span className="ml-auto text-[10px] font-bold uppercase tracking-wide bg-emerald-500/80 text-white rounded-full px-2 py-0.5">
+              Update
+            </span>
+          )}
         </button>
       </nav>
 
@@ -453,7 +473,13 @@ export const App = () => {
         {currentPage === 'recordings' && <Recordings />}
 
         {currentPage === 'settings' && (
-          <Settings profile={currentProfile} onLogout={handleLogout} />
+          <Settings
+            profile={currentProfile}
+            onLogout={handleLogout}
+            update={update}
+            checkingUpdate={checkingUpdate}
+            onCheckUpdates={checkUpdates}
+          />
         )}
 
         {currentPage === 'search' && (
